@@ -1,0 +1,11 @@
+{
+  "name": "chemdoodle-web-mini",
+  "version": "9.2.0",
+  "description": "chemdoodle minified files",
+  "main": "index.js",
+  "license": "GPLv3",
+  "devDependencies": {
+    "grunt": "^1.4.1",
+    "grunt-contrib-uglify-es": "^3.3.0"
+  }
+}
