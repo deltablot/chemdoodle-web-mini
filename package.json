@@ -1,6 +1,6 @@
 {
   "name": "@deltablot/chemdoodle-web-mini",
-  "version": "9.2.1",
+  "version": "9.2.2",
   "description": "chemdoodle minified files",
   "main": "index.js",
   "license": "GPL-3.0-or-later",
