@@ -1,7 +1,7 @@
 {
   "name": "@deltablot/chemdoodle-web-mini",
-  "version": "9.2.2",
-  "description": "chemdoodle minified files",
+  "version": "9.2.3",
+  "description": "chemdoodle minified files for eLabFTW",
   "main": "index.js",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
