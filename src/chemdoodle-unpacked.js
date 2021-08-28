@@ -14832,14 +14832,6 @@ ChemDoodle.math = (function(c, structures, q, m, undefined) {
 		return x >= left && x <= right;
 	};
 
-	// be careful not to remove this, as this will cause corruption issues
-	// contact iChemLabs for instructions to remove this
-	q(document).ready(function() {
-		if(c && c.iChemLabs && c.iChemLabs.checkForUpdates){
-			c.iChemLabs.checkForUpdates({});
-		}
-	});
-
 	pack.getRGB = function(color, multiplier) {
 		let err = [ 0, 0, 0 ];
 		if (namedColors[color.toLowerCase()]) {
@@ -29611,7 +29603,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			callback(content.map);
 		}, errorback);
 	};
-	
+
 	iChemLabs.mechanismMatch = function(arrow, targets, options, callback, errorback) {
 		this._contactServer('matchMechanism', {
 			'arrow' : arrow,

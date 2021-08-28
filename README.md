@@ -8,6 +8,8 @@ Note: the source files have been modified for eLabFTW and you should not use it 
 
 # npm publish
 
+Update version in package.json.
+
 ~~~bash
 npm publish --access public
 ~~~
