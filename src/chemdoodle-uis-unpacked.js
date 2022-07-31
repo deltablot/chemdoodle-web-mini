@@ -21258,7 +21258,7 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
         realName: realName,
         type: type,
         id: item,
-        string: c.writeMOL(sketcher.molecules[0])
+        content: c.writeMOL(sketcher.molecules[0])
       }).done(function() {
         // callback is not needed with MutationObserver on filesdiv
         $('#filesdiv').load('?mode=edit&id=' + item + ' #filesdiv > *');
