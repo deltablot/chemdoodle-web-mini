@@ -21229,7 +21229,7 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
     });
     // save
     this.buttonSave = new desktop.Button(sketcher.id + '_button_save', imageDepot.SAVE, 'Save', function() {
-// ELABFTW CUSTOMIZATION
+      // ELABFTW CUSTOMIZATION
       // save directly in a file and upload it
 
       // get query params from url
@@ -21252,18 +21252,32 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
       if (page === 'database.php') {
         type = 'items';
       }
-      $.post('app/controllers/EntityAjaxController.php', {
-        addFromString: true,
-        fileType: 'mol',
-        realName: realName,
-        type: type,
-        id: item,
-        content: c.writeMOL(sketcher.molecules[0])
-      }).done(function() {
+      // if the lasso is active we save that molecule instead
+      let content;
+      if (sketcher.lasso.isActive()) {
+        content = c.writeMOL(sketcher.lasso.getFirstMolecule());
+      } else {
+        content = c.writeMOL(sketcher.molecules[0]);
+      }
+      const postParams = {
+        'action': 'createfromstring',
+        'file_type': 'mol',
+        'real_name': realName,
+        'content': content,
+      };
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      fetch(`api/v2/${type}/${item}/uploads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(postParams),
+      }).then(() => {
         // callback is not needed with MutationObserver on filesdiv
         $('#filesdiv').load('?mode=edit&id=' + item + ' #filesdiv > *');
       });
-      // END ELABFTW CUSTOMIZATION
       /* ELABFTW CUSTOMIZATION -> commented out this part
       if (sketcher.useServices) {
         sketcher.dialogManager.saveDialog.clear();
