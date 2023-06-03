@@ -21233,24 +21233,16 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
       // save directly in a file and upload it
 
       // get query params from url
-      // from  http://stackoverflow.com/a/1099670
-      var qs = document.location.search.split('+').join(' ');
-      var params = {},
-        tokens,
-        re = /[?&]?([^=]+)=([^&]*)/g;
-
-      while ((tokens = re.exec(qs)) !== null) {
-        params[decodeURIComponent(tokens[1])] = decodeURIComponent(tokens[2]);
-      }
-      var item = params.id;
+      const urlParams = new URLSearchParams(window.location.search);
+      var item = urlParams.get('id');
       var page = location.pathname.substring(1);
       var type = 'experiments';
-      var realName = prompt('Enter name of the file');
-      if (realName == null) {
-        return;
-      }
       if (page === 'database.php') {
         type = 'items';
+      }
+      var realName = prompt('Enter name of the file');
+      if (realName === null || realName === '') {
+        realName = 'unnamed';
       }
       // if the lasso is active we save that molecule instead
       let content;

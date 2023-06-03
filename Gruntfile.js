@@ -23,7 +23,7 @@ module.exports = function(grunt) {
     },
   });
 
-  grunt.loadNpmTasks('grunt-contrib-uglify-es');
+  grunt.loadNpmTasks('grunt-contrib-uglify');
 
   // before minifying js it is preferable to do 'yarn install' to update the dependencies
   grunt.registerTask('default', ['uglify']);
