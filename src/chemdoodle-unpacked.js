@@ -1,9 +1,9 @@
 //
-// ChemDoodle Web Components 9.2.0
+// ChemDoodle Web Components 9.5.0
 //
 // https://web.chemdoodle.com
 //
-// Copyright 2009-2021 iChemLabs, LLC.  All rights reserved.
+// Copyright 2009-2023 iChemLabs, LLC.  All rights reserved.
 //
 // The ChemDoodle Web Components library is licensed under version 3
 // of the GNU GENERAL PUBLIC LICENSE.
@@ -34,11 +34,11 @@ let ChemDoodle = (function() {
 	c.io = {};
 	c.lib = {};
 	c.notations = {};
-	c.structures = {};
+	c.structures = {PID:0};
 	c.structures.d2 = {};
 	c.structures.d3 = {};
 
-	let VERSION = '9.2.0';
+	let VERSION = '9.5.0';
 
 	c.getVersion = function() {
 		return VERSION;
@@ -14832,6 +14832,14 @@ ChemDoodle.math = (function(c, structures, q, m, undefined) {
 		return x >= left && x <= right;
 	};
 
+	// be careful not to remove this, as this will cause corruption issues
+	// contact iChemLabs for instructions to remove this
+	q(document).ready(function() {
+		if(c && c.iChemLabs && c.iChemLabs.checkForUpdates){
+			c.iChemLabs.checkForUpdates({});
+		}
+	});
+
 	pack.getRGB = function(color, multiplier) {
 		let err = [ 0, 0, 0 ];
 		if (namedColors[color.toLowerCase()]) {
@@ -15736,7 +15744,13 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		this.x = x ? x : 0;
 		this.y = y ? y : 0;
 		this.z = z ? z : 0;
+		// objects cannot be placed directly on the prototype
+		this.enhancedStereo = {type:structures.Atom.ESTEREO_ABSOLUTE, group:1};
+		this.pid = structures.PID++;
 	};
+	structures.Atom.ESTEREO_ABSOLUTE = 'abs';
+	structures.Atom.ESTEREO_OR = 'or';
+	structures.Atom.ESTEREO_AND = '&';
 	let _ = structures.Atom.prototype = new structures.Point(0, 0);
 	_.charge = 0;
 	_.numLonePair = 0;
@@ -15869,13 +15883,14 @@ ChemDoodle.RESIDUE = (function(undefined) {
 					w: symbolWidth,
 					h: styles.atoms_font_size_2D - 2
 				});
-				// mass
+				// massmassWidth
 				let massWidth = 0;
 				if (this.mass !== -1) {
 					let fontSave = ctx.font;
 					ctx.font = extensions.getFontString(styles.atoms_font_size_2D * .7, styles.atoms_font_families_2D, styles.atoms_font_bold_2D, styles.atoms_font_italic_2D);
 					massWidth = ctx.measureText(this.mass).width;
-					ctx.fillText(this.mass, this.x - massWidth - .5, this.y - styles.atoms_font_size_2D / 2 + 1);
+					ctx.textAlign = 'right';
+					ctx.fillText(this.mass, this.x - symbolWidth / 2 - 1, this.y - styles.atoms_font_size_2D / 2 + 1);
 					this.textBounds.push({
 						x: this.x - symbolWidth / 2 - massWidth - .5,
 						y: this.y - (styles.atoms_font_size_2D * 1.7) / 2 + 1,
@@ -15883,6 +15898,7 @@ ChemDoodle.RESIDUE = (function(undefined) {
 						h: styles.atoms_font_size_2D / 2 - 1
 					});
 					ctx.font = fontSave;
+					ctx.textAlign = 'center';
 				}
 				// implicit hydrogens
 				let chargeOffset = symbolWidth / 2;
@@ -16016,8 +16032,25 @@ ChemDoodle.RESIDUE = (function(undefined) {
 				}
 			}
 		}
-		if (this.numLonePair > 0 || this.numRadical > 0) {
+		let attributes = [];
+		for (let i = 0; i < this.numLonePair; i++) {
+			attributes.push({
+				t: 2
+			});
+		}
+		for (let i = 0; i < this.numRadical; i++) {
+			attributes.push({
+				t: 1
+			});
+		}
+		if(this.enhancedStereo.type!==structures.Atom.ESTEREO_ABSOLUTE){
+			attributes.push(this.enhancedStereo);
+		}
+		if (attributes.length>0) {
 			ctx.fillStyle = 'black';
+			ctx.font = extensions.getFontString(styles.atoms_font_size_2D * .8, styles.atoms_font_families_2D, styles.atoms_font_bold_2D, styles.atoms_font_italic_2D);
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
 			let as = this.angles.slice(0);
 			let ali = this.angleOfLeastInterference;
 			let la = this.largestAngle;
@@ -16031,39 +16064,37 @@ ChemDoodle.RESIDUE = (function(undefined) {
 				ali = angleData.angle % (m.PI * 2);
 				la = angleData.largest;
 			}
-			let things = [];
-			for (let i = 0; i < this.numLonePair; i++) {
-				things.push({
-					t: 2
-				});
-			}
-			for (let i = 0; i < this.numRadical; i++) {
-				things.push({
-					t: 1
-				});
-			}
 			if (hAngle === undefined && m.abs(la - 2 * m.PI / as.length) < m.PI / 60) {
-				let mid = m.ceil(things.length / as.length);
-				for (let i = 0, ii = things.length; i < ii; i += mid, ali += la) {
-					this.drawElectrons(ctx, styles, things.slice(i, m.min(things.length, i + mid)), ali, la, hAngle);
+				let mid = m.ceil(attributes.length / as.length);
+				for (let i = 0, ii = attributes.length; i < ii; i += mid, ali += la) {
+					this.drawAttribute(ctx, styles, attributes.slice(i, m.min(attributes.length, i + mid)), ali, la, hAngle, labelVisible);
 				}
 			} else {
-				this.drawElectrons(ctx, styles, things, ali, la, hAngle);
+				this.drawAttribute(ctx, styles, attributes, ali, la, hAngle, labelVisible);
 			}
 		}
 		// for debugging atom label dimensions
 		//ctx.strokeStyle = 'red'; for(let i = 0, ii = this.textBounds.length;i<ii; i++){ let r = this.textBounds[i];ctx.beginPath();ctx.rect(r.x, r.y, r.w, r.h); ctx.stroke(); }
 
 	};
-	_.drawElectrons = function (ctx, styles, things, angle, largest, hAngle) {
-		let segment = largest / (things.length + (this.bonds.length === 0 && hAngle === undefined ? 0 : 1));
+	_.drawAttribute = function (ctx, styles, attributes, angle, largest, hAngle, labelVisible) {
+		let segment = largest / (attributes.length + (this.bonds.length === 0 && hAngle === undefined ? 0 : 1));
 		let angleStart = angle - largest / 2 + segment;
-		for (let i = 0; i < things.length; i++) {
-			let t = things[i];
+		for (let i = 0; i < attributes.length; i++) {
+			let t = attributes[i];
 			let angle = angleStart + i * segment;
-			let p1x = this.x + Math.cos(angle) * styles.atoms_lonePairDistance_2D;
-			let p1y = this.y - Math.sin(angle) * styles.atoms_lonePairDistance_2D;
-			if (t.t === 2) {
+			let distance = styles.atoms_lonePairDistance_2D;
+			if(labelVisible && t.type !== undefined){
+				// give text a bit more room if a label is showing
+				distance+=4;
+			}
+			let p1x = this.x + Math.cos(angle) * distance;
+			let p1y = this.y - Math.sin(angle) * distance;
+			if (t.type !== undefined) {
+				// enhanced stereo
+				let display = t.type+t.group;
+				ctx.fillText(display, p1x, p1y);
+			}else if (t.t === 2) {
 				let perp = angle + Math.PI / 2;
 				let difx = Math.cos(perp) * styles.atoms_lonePairSpread_2D / 2;
 				let dify = -Math.sin(perp) * styles.atoms_lonePairSpread_2D / 2;
@@ -16175,13 +16206,13 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		return false;
 	};
 	_.getImplicitHydrogenCount = function () {
-		if (!ELEMENT[this.label] || !ELEMENT[this.label].addH) {
+		if (!ELEMENT[this.label]) {
 			return 0;
 		}
 		if (this.implicitH !== -1) {
 			return this.implicitH;
 		}
-		if (this.label === 'H') {
+		if (!ELEMENT[this.label].addH || this.label === 'H') {
 			return 0;
 		}
 		let valence = ELEMENT[this.label].valency;
@@ -16246,11 +16277,22 @@ ChemDoodle.RESIDUE = (function(undefined) {
 
 (function(ELEMENT, extensions, structures, math, m, m4, v3, undefined) {
 	'use strict';
+
+	// this code is a workaround for a stroke caching bug in Safari	
+	if(navigator.userAgent.indexOf("Safari") > -1 && navigator.userAgent.indexOf("Chrome") === -1){
+		CanvasRenderingContext2D.prototype.oldStroke = CanvasRenderingContext2D.prototype.stroke;
+		CanvasRenderingContext2D.prototype.stroke = function(){
+			this.lineWidth+=m.random()*.01;
+			this.oldStroke();
+		}
+	}
+	
 	structures.Bond = function(a1, a2, bondOrder) {
 		this.a1 = a1;
 		this.a2 = a2;
 		// bondOrder can be 0, so need to check against undefined
 		this.bondOrder = bondOrder !== undefined ? bondOrder : 1;
+		this.pid = structures.PID++;
 	};
 	structures.Bond.STEREO_NONE = 'none';
 	structures.Bond.STEREO_PROTRUDING = 'protruding';
@@ -16353,7 +16395,6 @@ ChemDoodle.RESIDUE = (function(undefined) {
 			ctx.beginPath();
 			ctx.moveTo(xs, ys);
 			ctx.lineTo(xf, yf);
-			ctx.closePath();
 			ctx.stroke();
 		}
 		ctx.strokeStyle = this.error?styles.colorError:styles.bonds_color;
@@ -18107,6 +18148,38 @@ ChemDoodle.RESIDUE = (function(undefined) {
 	};
 
 })(ChemDoodle, ChemDoodle.math, ChemDoodle.structures, ChemDoodle.RESIDUE, Math);
+(function(structures, undefined) {
+	'use strict';
+
+	structures.Reaction = function() {
+	};
+	let _ = structures.Reaction.prototype;
+	_.resolve = function(arrow, molecules) {
+		if (!arrow || !molecules) {
+			return;
+		}
+		let returning = {
+			reactants:[],
+			products:[]
+		};
+		let ps = arrow.getPoints();
+		if (!ps) {
+			returning.reactants.push(...molecules);
+			return returning;
+		}
+		for ( let i = 0, ii = molecules.length; i < ii; i++) {
+			let m = molecules[i];
+			let center = m.getCenter();
+			if (center.x < ps[1].x) {
+				returning.reactants.push(m);
+			} else {
+				returning.products.push(m);
+			}
+		}
+		return returning;
+	};
+
+})(ChemDoodle.structures);
 
 (function(structures, m, m4, v3, undefined) {
 	'use strict';
@@ -24983,6 +25056,7 @@ ChemDoodle.RESIDUE = (function(undefined) {
 	io.MOLInterpreter = function() {
 	};
 	let _ = io.MOLInterpreter.prototype = new io._Interpreter();
+	_.version = 2;
 	_.read = function(content, multiplier) {
 		if (!multiplier) {
 			multiplier = c.DEFAULT_STYLES.bondLength_2D;
@@ -24991,68 +25065,180 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		if (!content) {
 			return molecule;
 		}
-		let currentTagTokens = content.split('\n');
+		let lines = content.split('\n');
 
-		let counts = currentTagTokens[3];
+		let counts = lines[3];
 		let numAtoms = parseInt(counts.substring(0, 3));
 		let numBonds = parseInt(counts.substring(3, 6));
+		let version = counts.substring(34, 39).trim().toUpperCase()==='V3000'?3:2;
 
-		for ( let i = 0; i < numAtoms; i++) {
-			let line = currentTagTokens[4 + i];
-			molecule.atoms[i] = new structures.Atom(line.substring(31, 34), parseFloat(line.substring(0, 10)) * multiplier, (multiplier === 1 ? 1 : -1) * parseFloat(line.substring(10, 20)) * multiplier, parseFloat(line.substring(20, 30)) * multiplier);
-			let massDif = parseInt(line.substring(34, 36));
-			if (massDif !== 0 && ELEMENT[molecule.atoms[i].label]) {
-				molecule.atoms[i].mass = ELEMENT[molecule.atoms[i].label].mass + massDif;
-			}
-			switch (parseInt(line.substring(36, 39))) {
-			case 1:
-				molecule.atoms[i].charge = 3;
-				break;
-			case 2:
-				molecule.atoms[i].charge = 2;
-				break;
-			case 3:
-				molecule.atoms[i].charge = 1;
-				break;
-			case 5:
-				molecule.atoms[i].charge = -1;
-				break;
-			case 6:
-				molecule.atoms[i].charge = -2;
-				break;
-			case 7:
-				molecule.atoms[i].charge = -3;
-				break;
-			}
-		}
-		for ( let i = 0; i < numBonds; i++) {
-			let line = currentTagTokens[4 + numAtoms + i];
-			let bondOrder = parseInt(line.substring(6, 9));
-			let stereo = parseInt(line.substring(9, 12));
-			if (bondOrder > 3) {
-				switch (bondOrder) {
-				case 4:
-					bondOrder = 1.5;
+		if(version===2){
+			for ( let i = 0; i < numAtoms; i++) {
+				let line = lines[4 + i];
+				let a = new structures.Atom(line.substring(31, 34), parseFloat(line.substring(0, 10)) * multiplier, (multiplier === 1 ? 1 : -1) * parseFloat(line.substring(10, 20)) * multiplier, parseFloat(line.substring(20, 30)) * multiplier);
+				let massDif = parseInt(line.substring(34, 36));
+				if (massDif !== 0 && ELEMENT[a.label]) {
+					a.mass = ELEMENT[a.label].mass + massDif;
+				}
+				switch (parseInt(line.substring(36, 39))) {
+				case 1:
+					a.charge = 3;
 					break;
-				default:
-					bondOrder = 1;
+				case 2:
+					a.charge = 2;
+					break;
+				case 3:
+					a.charge = 1;
+					break;
+				case 5:
+					a.charge = -1;
+					break;
+				case 6:
+					a.charge = -2;
+					break;
+				case 7:
+					a.charge = -3;
 					break;
 				}
+				molecule.atoms[i] = a;
 			}
-			let b = new structures.Bond(molecule.atoms[parseInt(line.substring(0, 3)) - 1], molecule.atoms[parseInt(line.substring(3, 6)) - 1], bondOrder);
-			switch (stereo) {
-			case 3:
-				b.stereo = structures.Bond.STEREO_AMBIGUOUS;
-				break;
-			case 1:
-				b.stereo = structures.Bond.STEREO_PROTRUDING;
-				break;
-			case 6:
-				b.stereo = structures.Bond.STEREO_RECESSED;
-				break;
+			for ( let i = 0; i < numBonds; i++) {
+				let line = lines[4 + numAtoms + i];
+				let bondOrder = parseInt(line.substring(6, 9));
+				let stereo = parseInt(line.substring(9, 12));
+				if (bondOrder > 3) {
+					switch (bondOrder) {
+					case 4:
+						bondOrder = 1.5;
+						break;
+					default:
+						bondOrder = 1;
+						break;
+					}
+				}
+				let b = new structures.Bond(molecule.atoms[parseInt(line.substring(0, 3)) - 1], molecule.atoms[parseInt(line.substring(3, 6)) - 1], bondOrder);
+				switch (stereo) {
+				case 3:
+					b.stereo = structures.Bond.STEREO_AMBIGUOUS;
+					break;
+				case 1:
+					b.stereo = structures.Bond.STEREO_PROTRUDING;
+					break;
+				case 6:
+					b.stereo = structures.Bond.STEREO_RECESSED;
+					break;
+				}
+				molecule.bonds[i] = b;
 			}
-			molecule.bonds[i] = b;
+		}else if(version===3){
+			let block;
+			for(let i = 4, ii=lines.length; i<ii; i++){
+				let line = lines[i].trim();
+				
+				if(line.startsWith('M  V30 ')){
+					line = line.substring(7);
+					if(line.startsWith('BEGIN ')){
+						block = line.substring(6);
+					}else if(line.startsWith('END ')){
+						block = undefined;
+					}else{
+						let tokens = line.split(/(\s+)/).filter( e => e.trim().length > 0);
+						if(block==='ATOM'){
+							// first two tokens are M and V30, already removed
+							// 3rd token is index
+							let a = new structures.Atom(tokens[1], parseFloat(tokens[2]) * multiplier, (multiplier === 1 ? 1 : -1) * parseFloat(tokens[3]) * multiplier, parseFloat(tokens[4]) * multiplier);
+							// 8th token is aamap
+							// remaining tokens
+							for(let j = 6, jj=tokens.length; j<jj; j++){
+								let token = tokens[j];
+								let equalsIndex = token.indexOf('=');
+								if(equalsIndex!==-1){
+									let field = token.substring(0, equalsIndex);
+									let value = token.substring(equalsIndex+1);
+									if(field==='CHG'){
+										a.charge = parseInt(value);
+									}else if(field==='RAD'){
+										a.numRadical = parseInt(value);
+									}else if(field==='MASS'){
+										a.mass = parseInt(value);
+									}else if(field==='VAL'){
+									
+									}
+								}
+							}
+							molecule.atoms.push(a);
+						}else if(block==='BOND'){
+							// first two tokens are M and V30, already removed
+							// 3rd token is index
+							let bondOrder = parseInt(tokens[1]);
+							if (bondOrder > 3) {
+								switch (bondOrder) {
+								case 4:
+									bondOrder = 1.5;
+									break;
+								default:
+									bondOrder = 1;
+									break;
+								}
+							}
+							let b = new structures.Bond(molecule.atoms[parseInt(tokens[2]) - 1], molecule.atoms[parseInt(tokens[3]) - 1], bondOrder);
+							// remaining tokens
+							for(let j = 4, jj=tokens.length; j<jj; j++){
+								let token = tokens[j];
+								let equalsIndex = token.indexOf('=');
+								if(equalsIndex!==-1){
+									let field = token.substring(0, equalsIndex);
+									let value = token.substring(equalsIndex+1);
+									if(field==='CFG'){
+										switch (parseInt(value)) {
+										case 2:
+											b.stereo = structures.Bond.STEREO_AMBIGUOUS;
+											break;
+										case 1:
+											b.stereo = structures.Bond.STEREO_PROTRUDING;
+											break;
+										case 3:
+											b.stereo = structures.Bond.STEREO_RECESSED;
+											break;
+										default:
+											break;
+										}
+									}
+								}
+							}
+							molecule.bonds.push(b);
+						}else if(block==='COLLECTION'){
+							if(line.startsWith('MDLV30/STEREL')){
+								line = line.substring(13);
+								let firstSpace = line.indexOf(' ');
+								let group = parseInt(line.substring(0, firstSpace));
+								let value = line.substring(firstSpace+1);
+								// cut out values
+								value = value.substring(7, value.length-1);
+								let tokens2 = value.split(/(\s+)/).filter( e => e.trim().length > 0);
+								for(let j = 1, jj=tokens2.length; j<jj; j++){
+									let t = tokens2[j];
+									molecule.atoms[parseInt(t)-1].enhancedStereo = {type:structures.Atom.ESTEREO_OR, group:group};
+								}
+							}else if(line.startsWith('MDLV30/STERAC')){
+								line = line.substring(13);
+								let firstSpace = line.indexOf(' ');
+								let group = parseInt(line.substring(0, firstSpace));
+								let value = line.substring(firstSpace+1);
+								// cut out values
+								value = value.substring(7, value.length-1);
+								let tokens2 = value.split(/(\s+)/).filter( e => e.trim().length > 0);
+								for(let j = 1, jj=tokens2.length; j<jj; j++){
+									let t = tokens2[j];
+									molecule.atoms[parseInt(t)-1].enhancedStereo = {type:structures.Atom.ESTEREO_AND, group:group};
+								}
+							}
+						}
+					}
+				}
+			}
 		}
+		
 		return molecule;
 	};
 	_.write = function(molecule) {
@@ -25060,83 +25246,224 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		sb.push('Molecule from ChemDoodle Web Components\n\nhttp://www.ichemlabs.com\n');
 		sb.push(this.fit(molecule.atoms.length.toString(), 3));
 		sb.push(this.fit(molecule.bonds.length.toString(), 3));
-		sb.push('  0  0  0  0            999 V2000\n');
+		sb.push('  0  0  0  0            999 V'+this.version+'000\n');
 		let p = molecule.getCenter();
-		for ( let i = 0, ii = molecule.atoms.length; i < ii; i++) {
-			let a = molecule.atoms[i];
-			let mass = ' 0';
-			if (a.mass !== -1 && ELEMENT[a.label]) {
-				let dif = a.mass - ELEMENT[a.label].mass;
-				if (dif < 5 && dif > -4) {
-					mass = (dif > -1 ? ' ' : '') + dif;
+		
+		if(this.version===2){
+			for ( let i = 0, ii = molecule.atoms.length; i < ii; i++) {
+				let a = molecule.atoms[i];
+				let mass = ' 0';
+				if (a.mass !== -1 && ELEMENT[a.label]) {
+					let dif = a.mass - ELEMENT[a.label].mass;
+					if (dif < 5 && dif > -4) {
+						mass = (dif > -1 ? ' ' : '') + dif;
+					}
 				}
-			}
-			let charge = '  0';
-			if (a.charge !== 0) {
-				switch (a.charge) {
-				case 3:
-					charge = '  1';
-					break;
-				case 2:
-					charge = '  2';
-					break;
-				case 1:
-					charge = '  3';
-					break;
-				case -1:
-					charge = '  5';
-					break;
-				case -2:
-					charge = '  6';
-					break;
-				case -3:
-					charge = '  7';
-					break;
+				let charge = '  0';
+				if (a.charge !== 0) {
+					switch (a.charge) {
+					case 3:
+						charge = '  1';
+						break;
+					case 2:
+						charge = '  2';
+						break;
+					case 1:
+						charge = '  3';
+						break;
+					case -1:
+						charge = '  5';
+						break;
+					case -2:
+						charge = '  6';
+						break;
+					case -3:
+						charge = '  7';
+						break;
+					}
 				}
+				sb.push(this.fit(((a.x - p.x) / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
+				sb.push(this.fit((-(a.y - p.y) / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
+				sb.push(this.fit((a.z / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
+				sb.push(' ');
+				sb.push(this.fit(a.label, 3, true));
+				sb.push(mass);
+				sb.push(charge);
+				sb.push('  0  0  0  0\n');
 			}
-			sb.push(this.fit(((a.x - p.x) / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
-			sb.push(this.fit((-(a.y - p.y) / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
-			sb.push(this.fit((a.z / c.DEFAULT_STYLES.bondLength_2D).toFixed(4), 10));
+			for ( let i = 0, ii = molecule.bonds.length; i < ii; i++) {
+				let b = molecule.bonds[i];
+				let stereo = 0;
+				if (b.stereo === structures.Bond.STEREO_AMBIGUOUS) {
+					stereo = 3;
+				} else if (b.stereo === structures.Bond.STEREO_PROTRUDING) {
+					stereo = 1;
+				} else if (b.stereo === structures.Bond.STEREO_RECESSED) {
+					stereo = 6;
+				}
+				sb.push(this.fit((molecule.atoms.indexOf(b.a1) + 1).toString(), 3));
+				sb.push(this.fit((molecule.atoms.indexOf(b.a2) + 1).toString(), 3));
+				let btype = b.bondOrder;
+				if(btype==1.5){
+					btype = 4;
+				}else if(btype>3 || btype%1!=0){
+					btype = 1;
+				}
+				sb.push(this.fit(btype.toString(), 3));
+				sb.push('  ');
+				sb.push(stereo);
+				sb.push('  0  0  0\n');
+			}
+		}else if(this.version===3){
+			// begin v3000 ctab
+			sb.push('M  V30 BEGIN CTAB\n');
+			// counts
+			sb.push('M  V30 COUNTS ');
+			sb.push(molecule.atoms.length);
 			sb.push(' ');
-			sb.push(this.fit(a.label, 3, true));
-			sb.push(mass);
-			sb.push(charge);
-			sb.push('  0  0  0  0\n');
-		}
-		for ( let i = 0, ii = molecule.bonds.length; i < ii; i++) {
-			let b = molecule.bonds[i];
-			let stereo = 0;
-			if (b.stereo === structures.Bond.STEREO_AMBIGUOUS) {
-				stereo = 3;
-			} else if (b.stereo === structures.Bond.STEREO_PROTRUDING) {
-				stereo = 1;
-			} else if (b.stereo === structures.Bond.STEREO_RECESSED) {
-				stereo = 6;
+			sb.push(molecule.bonds.length);
+			sb.push(' 0 0 0\n');
+			sb.push('M  V30 BEGIN ATOM\n');
+			for ( let i = 0, ii = molecule.atoms.length; i < ii; i++) {
+				let a = molecule.atoms[i];
+				sb.push('M  V30 ');
+				sb.push(i+1);
+				sb.push(' ');
+				sb.push(a.label);
+				sb.push(' ');
+				sb.push(((a.x - p.x) / c.DEFAULT_STYLES.bondLength_2D).toFixed(6));
+				sb.push(' ');
+				sb.push((-(a.y - p.y) / c.DEFAULT_STYLES.bondLength_2D).toFixed(6));
+				sb.push(' ');
+				sb.push((a.z / c.DEFAULT_STYLES.bondLength_2D).toFixed(6));
+				sb.push(' 0');
+				if(a.charge!==0){
+					sb.push(' CHG=');
+					sb.push(a.charge);
+				}
+				if(a.numRadical!==0){
+					sb.push(' RAD=');
+					sb.push(a.numRadical);
+				}
+				if(a.mass!==-1){
+					sb.push(' MASS=');
+					sb.push(a.mass);
+				}
+				sb.push('\n');
 			}
-			sb.push(this.fit((molecule.atoms.indexOf(b.a1) + 1).toString(), 3));
-			sb.push(this.fit((molecule.atoms.indexOf(b.a2) + 1).toString(), 3));
-			let btype = b.bondOrder;
-			if(btype==1.5){
-				btype = 4;
-			}else if(btype>3 || btype%1!=0){
-				btype = 1;
+			sb.push('M  V30 END ATOM\n');
+			sb.push('M  V30 BEGIN BOND\n');
+			for ( let i = 0, ii = molecule.bonds.length; i < ii; i++) {
+				let b = molecule.bonds[i];
+				let btype = b.bondOrder;
+				if(btype==1.5){
+					btype = 4;
+				}else if(btype>3 || btype%1!=0){
+					btype = 1;
+				}
+				
+				sb.push('M  V30 ');
+				sb.push(i+1);
+				sb.push(' ');
+				sb.push(btype);
+				sb.push(' ');
+				sb.push(molecule.atoms.indexOf(b.a1) + 1);
+				sb.push(' ');
+				sb.push(molecule.atoms.indexOf(b.a2) + 1);
+				if(b.stereo !== structures.Bond.STEREO_NONE){
+					let stereo = 0;
+					if (b.stereo === structures.Bond.STEREO_AMBIGUOUS) {
+						stereo = 2;
+					} else if (b.stereo === structures.Bond.STEREO_PROTRUDING) {
+						stereo = 1;
+					} else if (b.stereo === structures.Bond.STEREO_RECESSED) {
+						stereo = 3;
+					}
+					sb.push(' CFG=');
+					sb.push(stereo);
+				}
+				sb.push('\n');
 			}
-			sb.push(this.fit(btype.toString(), 3));
-			sb.push('  ');
-			sb.push(stereo);
-			sb.push('  0  0  0\n');
+			sb.push('M  V30 END BOND\n');
+			let and, or;
+			for ( let i = 0, ii = molecule.atoms.length; i < ii; i++) {
+				let a = molecule.atoms[i];
+				if (a.enhancedStereo.type!==structures.Atom.ESTEREO_ABSOLUTE) {
+					if (!and) {
+						and = [];
+						or = [];
+					}
+					let addingTo;
+					if (a.enhancedStereo.type===structures.Atom.ESTEREO_AND) {
+						addingTo = and;
+					} else if (a.enhancedStereo.type===structures.Atom.ESTEREO_OR) {
+						addingTo = or;
+					}
+					let group;
+					for ( let j = 0, jj = addingTo.length; j < jj; j++) {
+						let g = addingTo[j];
+						if (g.group == a.enhancedStereo.group) {
+							group = g;
+							break;
+						}
+					}
+					if (!group) {
+						group = {group:a.enhancedStereo.group, list:[]};
+						addingTo.push(group);
+					}
+					group.list.push(a);
+				}
+			}
+			if (and && (and.length>0 || or.length>0)) {
+				sb.push('M  V30 BEGIN COLLECTION\n');
+				if(and.length>0) {
+					for ( let i = 0, ii = and.length; i < ii; i++) {
+						let g = and[i];
+						sb.push('M  V30 MDLV30/STERAC');
+						sb.push(g.group);
+						sb.push(' ATOMS=(');
+						sb.push(g.list.length);
+						for ( let j = 0, jj = g.list.length; j < jj; j++) {
+							sb.push(' ');
+							sb.push(molecule.atoms.indexOf(g.list[j])+1);
+						}
+						sb.push(')\n');
+					}
+				}
+				if(or.length>0) {
+					for ( let i = 0, ii = or.length; i < ii; i++) {
+						let g = or[i];
+						sb.push('M  V30 MDLV30/STEREL');
+						sb.push(g.group);
+						sb.push(' ATOMS=(');
+						sb.push(g.list.length);
+						for ( let j = 0, jj = g.list.length; j < jj; j++) {
+							sb.push(' ');
+							sb.push(molecule.atoms.indexOf(g.list[j])+1);
+						}
+						sb.push(')\n');
+					}
+				}
+				sb.push('M  V30 END COLLECTION\n');
+			}
+			sb.push('M  V30 END CTAB\n');
 		}
 		sb.push('M  END');
 		return sb.join('');
 	};
 
 	// shortcuts
-	let interpreter = new io.MOLInterpreter();
+	let interpreter2 = new io.MOLInterpreter();
 	c.readMOL = function(content, multiplier) {
-		return interpreter.read(content, multiplier);
+		return interpreter2.read(content, multiplier);
 	};
 	c.writeMOL = function(mol) {
-		return interpreter.write(mol);
+		return interpreter2.write(mol);
+	};
+	let interpreter3 = new io.MOLInterpreter();
+	interpreter3.version = 3;
+	c.writeMOLV3 = function(mol) {
+		return interpreter3.write(mol);
 	};
 
 })(ChemDoodle, ChemDoodle.ELEMENT, ChemDoodle.io, ChemDoodle.structures);
@@ -25787,15 +26114,49 @@ ChemDoodle.RESIDUE = (function(undefined) {
 	_.contentTo = function(mols, shapes) {
 		if(!mols){mols = [];}
 		if(!shapes){shapes = [];}
-		let count1 = 0, count2 = 0;
+		let usePIDs = true;
 		for ( let i = 0, ii = mols.length; i < ii; i++) {
 			let mol = mols[i];
 			for ( let j = 0, jj = mol.atoms.length; j < jj; j++) {
-				mol.atoms[j].tmpid = 'a' + count1++;
+				if(mol.atoms[j].pid===undefined){
+					usePIDs = false;
+					break;
+				}
+			}
+			if(usePIDs){
+				for ( let j = 0, jj = mol.bonds.length; j < jj; j++) {
+					if(mol.bonds[j].pid===undefined){
+						usePIDs = false;
+						break;
+					}
+				}
+			}
+		}
+		let count1 = 0, count2 = 0, count3 = 0;
+		for ( let i = 0, ii = mols.length; i < ii; i++) {
+			let mol = mols[i];
+			let mpid = undefined;
+			for ( let j = 0, jj = mol.atoms.length; j < jj; j++) {
+				let aj = mol.atoms[j];
+				if(usePIDs){
+					aj.tmpid = 'a' + aj.pid;
+					if(mpid===undefined || mpid>aj.pid){
+						// pick the lowest atom pid for the molecule
+						mpid = aj.pid;
+					}
+				}else{
+					aj.tmpid = 'a' + count1++;
+				}
 			}
 			for ( let j = 0, jj = mol.bonds.length; j < jj; j++) {
-				mol.bonds[j].tmpid = 'b' + count2++;
+				let bj = mol.bonds[j];
+				if(usePIDs){
+					bj.tmpid = 'b' + bj.pid;
+				}else{
+					bj.tmpid = 'b' + count2++;
+				}
 			}
+			mol.tmpid = 'm' + (mpid===undefined?count3++:mpid);
 		}
 		count1 = 0;
 		for ( let i = 0, ii = shapes.length; i < ii; i++) {
@@ -25822,6 +26183,7 @@ ChemDoodle.RESIDUE = (function(undefined) {
 			for ( let j = 0, jj = mol.bonds.length; j < jj; j++) {
 				mol.bonds[j].tmpid = undefined;
 			}
+			mol.tmpid = undefined;
 		}
 		for ( let i = 0, ii = shapes.length; i < ii; i++) {
 			shapes[i].tmpid = undefined;
@@ -25886,6 +26248,9 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		let dummy = {
 			a : []
 		};
+		if (mol.tmpid) {
+			dummy.i = mol.tmpid;
+		}
 		for ( let i = 0, ii = mol.atoms.length; i < ii; i++) {
 			let a = mol.atoms[i];
 			let da = {
@@ -25915,6 +26280,12 @@ ChemDoodle.RESIDUE = (function(undefined) {
 			}
 			if (a.numLonePair !== 0) {
 				da.p = a.numLonePair;
+			}
+			if (a.enhancedStereo && a.enhancedStereo.type!==structures.Atom.ESTEREO_ABSOLUTE) {
+				da.s2 = {t:a.enhancedStereo.type};
+				if(a.enhancedStereo.group>1){
+					da.s2.g = a.enhancedStereo.group;
+				}
 			}
 			if (a.query) {
 				da.q = this.queryTo(a.query);
@@ -26000,6 +26371,12 @@ ChemDoodle.RESIDUE = (function(undefined) {
 			}
 			if (c.p) {
 				a.numLonePair = c.p;
+			}
+			if(c.s2){
+				a.enhancedStereo = {
+					type: c.s2.t,
+					group: c.s2.g===undefined?1:c.s2.g
+				};
 			}
 			if(c.q){
 				a.query = this.queryFrom(c.q);
@@ -26442,39 +26819,34 @@ ChemDoodle.RESIDUE = (function(undefined) {
 		};
 	};
 	_.write = function(mols, shapes) {
-		let molecules = [ [], [] ];
-		let ps = undefined;
+		let arrow = undefined;
 		if (!mols || !shapes) {
 			return;
 		}
 		for (let i = 0, ii = shapes.length; i < ii; i++) {
 			if (shapes[i] instanceof structures.d2.Line) {
-				ps = shapes[i].getPoints();
+				arrow = shapes[i];
 				break;
 			}
 		}
-		if (!ps) {
+		if (!arrow) {
 			return '';
 		}
-		for ( let i = 0, ii = mols.length; i < ii; i++) {
-			let center = mols[i].getCenter();
-			if (center.x < ps[1].x) {
-				molecules[0].push(mols[i]);
-			} else {
-				molecules[1].push(mols[i]);
-			}
-		}
+		let reaction = new structures.Reaction().resolve(arrow, mols);
 		let sb = [];
 		sb.push('$RXN\nReaction from ChemDoodle Web Components\n\nhttp://www.ichemlabs.com\n');
-		sb.push(this.fit(molecules[0].length.toString(), 3));
-		sb.push(this.fit(molecules[1].length.toString(), 3));
+		sb.push(this.fit(reaction.reactants.length.toString(), 3));
+		sb.push(this.fit(reaction.products.length.toString(), 3));
 		sb.push('\n');
-		for ( let i = 0; i < 2; i++) {
-			for ( let j = 0, jj = molecules[i].length; j < jj; j++) {
-				sb.push('$MOL\n');
-				sb.push(c.writeMOL(molecules[i][j]));
-				sb.push('\n');
-			}
+		for ( let j = 0, jj = reaction.reactants.length; j < jj; j++) {
+			sb.push('$MOL\n');
+			sb.push(c.writeMOL(reaction.reactants[j]));
+			sb.push('\n');
+		}
+		for ( let j = 0, jj = reaction.products.length; j < jj; j++) {
+			sb.push('$MOL\n');
+			sb.push(c.writeMOL(reaction.products[j]));
+			sb.push('\n');
 		}
 		return sb.join('');
 	};
@@ -27178,12 +27550,12 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			e.pageX = e.originalEvent.changedTouches[0].pageX;
 			e.pageY = e.originalEvent.changedTouches[0].pageY;
 		}
+		e.offset = q('#' + this.id).offset();
+		e.p = new structures.Point(e.pageX - e.offset.left, e.pageY - e.offset.top);
 		if(!this.doEventDefault){
 			e.preventDefault();
 			e.returnValue = false;
 		}
-		e.offset = q('#' + this.id).offset();
-		e.p = new structures.Point(e.pageX - e.offset.left, e.pageY - e.offset.top);
 	};
 	
 })(ChemDoodle, ChemDoodle.featureDetection, ChemDoodle.math, ChemDoodle.monitor, ChemDoodle.structures, ChemDoodle.lib.jQuery, Math, document, window, navigator.userAgent);
@@ -27936,6 +28308,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			this.create(id, width, height);
 		}
 	};
+	c._Canvas3D.PRESERVE_DRAWING_BUFFER = false;
 	let _ = c._Canvas3D.prototype = new c._Canvas();
 	let _super = c._Canvas.prototype;
 	_.rotationMatrix = undefined;
@@ -28523,7 +28896,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 		// setup gl object
 		try {
 			let canvas = document.getElementById(this.id);
-			this.gl = canvas.getContext('webgl');
+			this.gl = canvas.getContext('webgl', {preserveDrawingBuffer: c._Canvas3D.PRESERVE_DRAWING_BUFFER});
 			if (!this.gl) {
 				this.gl = canvas.getContext('experimental-webgl');
 			}
@@ -29316,11 +29689,14 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 
 })(ChemDoodle, ChemDoodle.extensions, ChemDoodle.math, document);
 
-(function(io, document, window, undefined) {
+(function(c, io, document, window, undefined) {
 	'use strict';
 	io.png = {};
 
 	io.png.string = function(canvas) {
+		if(canvas instanceof c._Canvas3D && !canvas.gl.getContextAttributes().preserveDrawingBuffer){
+			throw Error('PNG data cannot be created from a Canvas3D component unless the ChemDoodle._Canvas3D.PRESERVE_DRAWING_BUFFER boolean is set to true before the Canvas3D component is initialized.');
+		}
 		// this will not work for WebGL canvases in some browsers
 		// to fix that you need to set the "preserveDrawingBuffer" to true when
 		// creating the WebGL context
@@ -29329,11 +29705,24 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 		return document.getElementById(canvas.id).toDataURL('image/png');
 	};
 
-	io.png.open = function(canvas) {
-		window.open(this.string(canvas));
+	io.png.download = function(canvas, name) {
+		if(name===undefined){
+			 name = 'unnamed';
+		}
+		let a = document.createElement("a");
+		a.href = this.string(canvas);
+		a.download = name;
+		a.click();
 	};
 
-})(ChemDoodle.io, document, window);
+	io.png.open = function(canvas) {
+		let w = window.open();
+		w.document.open();
+	    w.document.write('<iframe src="' + this.string(canvas)  + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
+	    w.document.close();
+	};
+
+})(ChemDoodle, ChemDoodle.io, document, window);
 
 (function(io, q, undefined) {
 	'use strict';
@@ -29377,15 +29766,21 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			});
 		} else {
 			iChemLabs.inRelay = true;
-			q.ajax({
+			let isFormData = content instanceof FormData;
+            let jsonData = JSON.stringify({
+					'call' : call,
+					'content' : isFormData?{}:content,
+					'options' : options,
+					'info' : ChemDoodle.iChemLabs.INFO
+				});
+            if(isFormData){
+                content.append('jsonData', JSON.stringify(jsonData));
+            }
+            let data = isFormData?content:jsonData;
+			let request = {
 				dataType : 'text',
 				type : 'POST',
-				data : JSON.stringify({
-					'call' : call,
-					'content' : content,
-					'options' : options,
-					'info' : iChemLabs.INFO
-				}),
+				data : data,
 				url : this.SERVER_URL,
 				success : function(data) {
 					let o = JSON.parse(data);
@@ -29421,7 +29816,13 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 					withCredentials : true
 				},
 				async : iChemLabs.asynchronous
-			});
+			};
+			if(isFormData){
+				// these two properties are required for sending up multipart form data
+                request.processData = false;
+                request.contentType = false;
+			}
+			q.ajax(request);
 		}
 	};
 
@@ -29462,6 +29863,26 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			callback(JSON_INTERPRETER.molFrom(content.mol));
 		}, errorback);
 	};
+	
+	iChemLabs.cir = function(formData, options, callback, errorback) {
+    	this._contactServer('cir', formData, options, function(content) {
+	        callback(JSON_INTERPRETER.contentFrom(content.data), content.preview);
+	    }, errorback);
+	};
+	
+	iChemLabs.elementalAnalysis = function(mol, options, callback, errorback) {
+        this._contactServer('elementalAnalysis', {
+            'mol' : new ChemDoodle.io.JSONInterpreter().molTo(mol)
+        }, options, function(content) {
+            callback(content);
+        }, errorback);
+    };
+	
+	iChemLabs.fileToImage = function(formData, options, callback, errorback) {
+	   	this._contactServer('fileToImage', formData, options, function(content) {
+	        callback(content.imgsrc, content.width, content.height);
+	    }, errorback);
+	};
 
 	iChemLabs.generateImage = function(mol, options, callback, errorback) {
 		this._contactServer('generateImage', {
@@ -29475,7 +29896,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 		this._contactServer('generateIUPACName', {
 			'mol' : JSON_INTERPRETER.molTo(mol)
 		}, options, function(content) {
-			callback(content.iupac);
+			callback(content.iupac, content.attemptedPIN);
 		}, errorback);
 	};
 
@@ -29603,7 +30024,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 			callback(content.map);
 		}, errorback);
 	};
-
+	
 	iChemLabs.mechanismMatch = function(arrow, targets, options, callback, errorback) {
 		this._contactServer('matchMechanism', {
 			'arrow' : arrow,
@@ -29651,7 +30072,7 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 		this._contactServer('readSMILES', {
 			'smiles' : smiles
 		}, options, function(content) {
-			callback(JSON_INTERPRETER.molFrom(content.mol));
+			callback(JSON_INTERPRETER.contentFrom(content.content));
 		}, errorback);
 	};
 
@@ -29707,9 +30128,23 @@ ChemDoodle.monitor = (function(featureDetection, q, document, undefined) {
 		}, errorback);
 	};
 
-	iChemLabs.writeSMILES = function(mol, options, callback, errorback) {
+	iChemLabs.stoichiometry = function(providedInformation, options, callback, errorback) {
+		let input = {};
+        if(typeof(providedInformation) === 'string' || providedInformation instanceof String){
+            input.equation = providedInformation;
+        }else if(providedInformation.molecules!==undefined){
+            input.reaction = JSON_INTERPRETER.contentTo(providedInformation.molecules, providedInformation.shapes);
+        }else if(providedInformation.table!==undefined){
+            input.table = providedInformation.table;
+        }
+        this._contactServer('stoichiometry', input, options, function(content) {
+            callback(content.table, content.message);
+        }, errorback);
+	};
+
+	iChemLabs.writeSMILES = function(mols, shapes, options, callback, errorback) {
 		this._contactServer('writeSMILES', {
-			'mol' : JSON_INTERPRETER.molTo(mol)
+			'content' : JSON_INTERPRETER.contentTo(mols, shapes)
 		}, options, function(content) {
 			callback(content.smiles);
 		}, errorback);
