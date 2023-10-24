@@ -20898,9 +20898,6 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
 	};
 	_.getContentSource = function(){
 		let sb = ['<div>'];
-          // ELABFTW modif
-      sb.push('<div width="100%"><button class="button btn btn-neutral getMolButton">Select from uploaded files</button><div class="getMolDiv"></div></div>');
-      // END ELABFTW MODIF
 		sb.push('<table style="margin-bottom:20px;"><tr><td style="vertical-align:top;"><strong>Enhanced<br>Stereochemistry</strong>:</td>');
 		sb.push('<td style="vertical-align:top;">');
 		sb.push('<table><tr><td><input type="radio" id="'+this.id+'_estereo_abs" name="estereo" value="abs"><label for="estereo_abs">Absolute</label></td></tr>');
@@ -21108,6 +21105,9 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
 		this.openPopup = new desktop.Popover(sketcher, sketcher.id+'_open_popover');
 		this.openPopup.getContentSource = function(){
 			let sb = ['<div style="width:320px;">'];
+          // ELABFTW modif
+      sb.push('<div width="100%"><button class="button btn btn-neutral getMolButton">Select from uploaded files</button><div class="getMolDiv"></div></div>');
+      // END ELABFTW MODIF
 			//sb.push('<div width="100%">Open chemical file from your computer:</div><br><form action="demo_form.asp">'];
   			//sb.push('<input type="file" name="file" accept="image/*">');
   			//sb.push('<input onclick="alert(\'include your form code here.\');" type="button" value="Open" /*type="submit"*/>');
