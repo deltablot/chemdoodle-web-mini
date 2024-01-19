@@ -21519,8 +21519,8 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
         },
         body: JSON.stringify(postParams),
       }).then(() => {
-        // callback is not needed with MutationObserver on filesdiv
-        $('#filesdiv').load('?mode=edit&id=' + item + ' #filesdiv > *');
+				// callback is not needed with MutationObserver on uploadsDiv
+				$('#uploadsDiv').load('?mode=edit&id=' + item + ' #uploadsDiv > *');
       });
       /* ELABFTW CUSTOMIZATION -> commented out this part
 			let cont = true;
