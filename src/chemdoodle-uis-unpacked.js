@@ -21105,9 +21105,9 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
 		this.openPopup = new desktop.Popover(sketcher, sketcher.id+'_open_popover');
 		this.openPopup.getContentSource = function(){
 			let sb = ['<div style="width:320px;">'];
-          // ELABFTW modif
-      sb.push('<div width="100%"><button class="button btn btn-neutral getMolButton">Select from uploaded files</button><div class="getMolDiv"></div></div>');
-      // END ELABFTW MODIF
+          	// ELABFTW modif
+      		sb.push('<div width="100%"><button class="button btn btn-neutral getMolButton">Select from uploaded files</button><div class="getMolDiv"></div></div>');
+      		// END ELABFTW MODIF
 			//sb.push('<div width="100%">Open chemical file from your computer:</div><br><form action="demo_form.asp">'];
   			//sb.push('<input type="file" name="file" accept="image/*">');
   			//sb.push('<input onclick="alert(\'include your form code here.\');" type="button" value="Open" /*type="submit"*/>');
@@ -21481,67 +21481,70 @@ ChemDoodle.uis.gui.templateDepot = (function(JSON, localStorage, undefined) {
 		});
 		// save
 		this.buttonSave = new desktop.Button(sketcher.id + '_button_save', imageDepot.SAVE, 'Save', function() {
-      // ELABFTW CUSTOMIZATION
-      // save directly in a file and upload it
+			// ELABFTW CUSTOMIZATION
+			// save directly in a file and upload it
 
-      // get query params from url
-      const urlParams = new URLSearchParams(window.location.search);
-      var item = urlParams.get('id');
-      var page = location.pathname.substring(1);
-      var type = 'experiments';
-      if (page === 'database.php') {
-        type = 'items';
-      }
-      var realName = prompt('Enter name of the file');
-      if (realName === null || realName === '') {
-        realName = 'unnamed';
-      }
-      // if the lasso is active we save that molecule instead
-      let content;
-      if (sketcher.lasso.isActive()) {
-        content = c.writeMOL(sketcher.lasso.getFirstMolecule());
-      } else {
-        content = c.writeMOL(sketcher.molecules[0]);
-      }
-      const postParams = {
-        'action': 'createfromstring',
-        'file_type': 'mol',
-        'real_name': realName,
-        'content': content,
-      };
-      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-      fetch(`api/v2/${type}/${item}/uploads`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify(postParams),
-      }).then(() => {
+			// get query params from url
+			const urlParams = new URLSearchParams(window.location.search);
+			var item = urlParams.get('id');
+			var page = location.pathname.substring(1);
+			var type = 'experiments';
+			if (page === 'database.php') {
+				type = 'items';
+			}
+			var realName = prompt('Enter name of the file');
+			if (realName === null || realName === '') {
+				realName = 'unnamed.mol';
+			}
+			if (!realName.endsWith('.mol')) {
+				realName = realName + '.mol';
+			}
+			// if the lasso is active we save that molecule instead
+			let content;
+			if (sketcher.lasso.isActive()) {
+				content = c.writeMOL(sketcher.lasso.getFirstMolecule());
+			} else {
+				content = c.writeMOL(sketcher.molecules[0]);
+			}
+			const postParams = {
+				'action': 'createfromstring',
+				'file_type': 'mol',
+				'real_name': realName,
+				'content': content,
+			};
+			const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+			fetch(`api/v2/${type}/${item}/uploads`, {
+				method: 'POST',
+				headers: {
+				'Content-Type': 'application/json',
+				'X-CSRF-Token': csrfToken,
+				'X-Requested-With': 'XMLHttpRequest',
+				},
+				body: JSON.stringify(postParams),
+			}).then(() => {
 				// callback is not needed with MutationObserver on uploadsDiv
 				$('#uploadsDiv').load('?mode=edit&id=' + item + ' #uploadsDiv > *');
-      });
-      /* ELABFTW CUSTOMIZATION -> commented out this part
-			let cont = true;
-			if (sketcher.useServices) {
-				sketcher.dialogManager.saveDialog.clear();
-			} else {
-				if (sketcher.oneMolecule) {
-					sketcher.dialogManager.saveDialog.getTextArea().val(c.writeMOL(sketcher.molecules[0]));
+			});
+			/* ELABFTW CUSTOMIZATION -> commented out this part
+				let cont = true;
+				if (sketcher.useServices) {
+					sketcher.dialogManager.saveDialog.clear();
 				} else {
-					if (sketcher.lasso.isActive() && sketcher.lasso.atoms.length > 0){
-						sketcher.dialogManager.saveDialog.getTextArea().val(c.writeMOL(sketcher.lasso.getFirstMolecule()));
-					}else{
-						cont = false;
-						alert('The MOLfile must be generated from a single chemical structure. Please draw and select a single molecule to be output as a MOLfile.');
+					if (sketcher.oneMolecule) {
+						sketcher.dialogManager.saveDialog.getTextArea().val(c.writeMOL(sketcher.molecules[0]));
+					} else {
+						if (sketcher.lasso.isActive() && sketcher.lasso.atoms.length > 0){
+							sketcher.dialogManager.saveDialog.getTextArea().val(c.writeMOL(sketcher.lasso.getFirstMolecule()));
+						}else{
+							cont = false;
+							alert('The MOLfile must be generated from a single chemical structure. Please draw and select a single molecule to be output as a MOLfile.');
+						}
 					}
 				}
-			}
-			if(cont){
-				sketcher.dialogManager.saveDialog.open();
-			}
-    END ELABFTW CUSTOMIZATION */
+				if(cont){
+					sketcher.dialogManager.saveDialog.open();
+				}
+			END ELABFTW CUSTOMIZATION */
 		});
 		// template
 		this.buttonTemplate = new desktop.Button(sketcher.id + '_button_template', imageDepot.TEMPLATES, 'Templates', function() {
