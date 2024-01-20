@@ -14834,11 +14834,11 @@ ChemDoodle.math = (function(c, structures, q, m, undefined) {
 
 	// be careful not to remove this, as this will cause corruption issues
 	// contact iChemLabs for instructions to remove this
-	q(document).ready(function() {
-		if(c && c.iChemLabs && c.iChemLabs.checkForUpdates){
-			c.iChemLabs.checkForUpdates({});
-		}
-	});
+	//q(document).ready(function() {
+	//	if(c && c.iChemLabs && c.iChemLabs.checkForUpdates){
+	//		c.iChemLabs.checkForUpdates({});
+	//	}
+	//});
 
 	pack.getRGB = function(color, multiplier) {
 		let err = [ 0, 0, 0 ];
